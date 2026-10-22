@@ -6,11 +6,10 @@ from pydantic import BaseModel
 from domain.user.exceptions import InvalidEmailError, UserAlreadyExistsError
 from domain.user.user import User
 from domain.user.value_objects import Gender
-from infrastucture.persistence.neo4j.client import Neo4jClient
-from infrastucture.persistence.neo4j.user_repositories import Neo4jUserRepository
+from infrastructure.persistence.neo4j.client import Neo4jClient
+from infrastructure.persistence.neo4j.user_repositories import Neo4jUserRepository
 
 from domain.user.exceptions import UserNotFoundError
-from pydantic.v1 import NoneStr
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -95,11 +94,10 @@ def delete_user(
         repo: Neo4jUserRepository = Depends(get_user_repository),
 
 ) -> status.HTTP_200_OK:
-    valid = repo.is_valid_user(username=payload.username)
-    if not valid:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"user {payload.username} not found")
-    else:
+    try:
         repo.delete_user(username=payload.username)
+    except UserNotFoundError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
 
     return UserDeleteResponse.from_user(message="user deleted successfully", code=int(status.HTTP_200_OK))
 
@@ -108,7 +106,7 @@ def check_user(
         payload: UserCheckRequest,
         repo: Neo4jUserRepository = Depends(get_user_repository),
 ) -> tuple[bool, str | None]:
-    valid = repo.is_valid_user(username=payload.username, password=payload.password)
+    valid = repo.valid_credentials(username=payload.username, password=payload.password)
     if not valid:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid username or password")
     return True, None

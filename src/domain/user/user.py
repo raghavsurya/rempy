@@ -15,7 +15,9 @@ class User:
     email: Email
     gender: Gender = Gender.MALE
     num_of_reminders: int = 0
+
     id: UUID = field(default_factory=uuid4)
+    user_id: int | None = None
 
     def __post_init__(self):
         if not isinstance(self.email, Email):
@@ -36,14 +38,19 @@ class User:
         }
 
     @classmethod
-    def from_dict(cls, data: dict) -> "User":
-        """Rehydrate a User from a persisted record (e.g. a Neo4j node)."""
+    def from_dict(cls, data: dict, user_id: int | None = None) -> "User":
+        """Rehydrate a User from a persisted record (e.g. a Neo4j node).
+
+        `user_id` is Neo4j's internal node id, which isn't a node property so
+        it's passed in separately (e.g. from `id(u)` in the Cypher query).
+        """
         user = cls(
             username=data["username"],
             password=data.get("password", ""),
             email=data["email"],
             gender=data.get("gender", Gender.MALE.value),
             num_of_reminders=data.get("num_of_reminders", 0),
+            user_id=user_id,
         )
         user.id = UUID(str(data["id"]))
         return user

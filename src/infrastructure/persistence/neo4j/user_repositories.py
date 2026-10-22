@@ -1,10 +1,12 @@
 import logging
-from domain.user.exceptions import UserAlreadyExistsError
+from domain.user.exceptions import UserAlreadyExistsError, PasswordMismatchError
 from domain.user.repositories import UserRepository
 from domain.user.user import User
-from infrastucture.persistence.neo4j.client import Neo4jClient
+from infrastructure.persistence.neo4j.client import Neo4jClient
 from neo4j.exceptions import ConstraintError
-from argon2 import PasswordHasher
+from argon2 import PasswordHasher, exceptions
+
+from domain.user.exceptions import UserNotFoundError
 
 _ADD_USER_QUERY = """
 MERGE (u:User {username: $username})
@@ -14,7 +16,7 @@ ON CREATE SET
     u.email = $email,
     u.gender = $gender,
     u.num_of_reminders = $num_of_reminders
-RETURN u, u.id = $id AS created
+RETURN u, id(u) AS user_id, u.id = $id AS created
 """
 
 _DELETE_USER_QUERY = """
@@ -22,7 +24,7 @@ MATCH(u:User {username: $username})
 DELETE u
 """
 
-_LIST_USERS_QUERY = "MATCH (u:User) RETURN u ORDER BY u.username"
+_LIST_USERS_QUERY = "MATCH (u:User) RETURN u, id(u) AS user_id ORDER BY u.username"
 
 _CONSTRAINT_EMAIL_QUERY = """
 CREATE CONSTRAINT user_email_unique IF NOT EXISTS
@@ -66,12 +68,12 @@ class Neo4jUserRepository(UserRepository):
             logging.error("constraint failed")
             raise UserAlreadyExistsError(user.username)
 
-        return User.from_dict(dict(record["u"]))
+        return User.from_dict(dict(record["u"]), user_id=record["user_id"])
 
     def list_users(self) -> list[User]:
         with self._client.session() as session:
             result = session.run(_LIST_USERS_QUERY)
-            return [User.from_dict(dict(record["u"])) for record in result]
+            return [User.from_dict(dict(record["u"]), user_id=record["user_id"]) for record in result]
 
     def delete_user(self, username: str):
         with self._client.session() as session:
@@ -81,29 +83,29 @@ class Neo4jUserRepository(UserRepository):
         with self._client.session() as session:
             session.run(_UPDATE_PASSWORD_HASH_QUERY, username=username, password_hash=password_hash)
 
-    def is_valid_user(self, username: str, password: str) -> bool:
+    def valid_credentials(self, username: str, password: str) -> int:
         with self._client.session() as session:
             result = session.run("""
                     MATCH (u:User {username: $username})
-                    RETURN u;
+                    RETURN u, id(u) AS user_id;
                     """, username=username).single()
         if result is None:
-            return False
+            raise UserNotFoundError(username)
 
-        record = User.from_dict(dict(result["u"]))
+        record = User.from_dict(dict(result["u"]), user_id=result["user_id"])
         ph = PasswordHasher()
-        verified = ph.verify(record.password, password)
+        try:
+            ph.verify(record.password, password)
+        except exceptions.VerificationError:
+            raise PasswordMismatchError(username)
 
-        if not verified:
-            logging.error("password incorrect")
-            return False
 
         if ph.check_needs_rehash(record.password):
             logging.info("password hash changed")
             hashed_pwd = User.hash_password(record.password)
             self.update_password_hash(username, hashed_pwd)
 
-        return True
+        return record.user_id
 
 
     #TODO: rehash the password again by calling

@@ -4,9 +4,11 @@ from starlette.responses import JSONResponse
 
 from middlewares.process_duration import ProcessDurationMiddleware
 from api.users import get_user_repository, router as users_router
+from api.auth import router as auth_router
 app = FastAPI(title="rempy")
 app.add_middleware(ProcessDurationMiddleware)
 app.include_router(users_router)
+app.include_router(auth_router)
 
 
 # @app.middleware("http")

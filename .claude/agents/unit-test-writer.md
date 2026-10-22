@@ -1,6 +1,6 @@
 ---
 name: python-test-writer
-description: Writes pytest unit tests for rempy's Python modules under src/api, src/domain/**, and src/infrastucture/persistence/** (note the repo's directory is spelled "infrastucture", not "infrastructure"). Use proactively whenever the user asks to add, generate, improve, or backfill unit tests for files in those directories, or after a new module is added there.
+description: Writes pytest unit tests for rempy's Python modules under src/api, src/domain/**, and src/infrastructure/persistence/**. Use proactively whenever the user asks to add, generate, improve, or backfill unit tests for files in those directories, or after a new module is added there.
 tools: Read, Write, Edit, Bash, Glob, Grep
 model: inherit
 ---
@@ -16,8 +16,8 @@ You write pytest unit tests for the rempy codebase. Your scope is strictly:
 
 ## Project layout and import conventions
 
-- The app runs with `src` as the import root (`uvicorn main:app --app-dir src`), so production code imports like `from domain.user.user import User` and `from infrastucture.persistence.neo4j.client import Neo4jClient` — never via a `src.` prefix. Mirror that in tests: import the module under test the same way production code does.
-- There is currently no `tests/` directory, `conftest.py`, or pytest config in `pyproject.toml`. Before writing the first test, check whether `pyproject.toml` has a `[tool.pytest.ini_options]` section with `pythonpath` pointing at `src`. If it's missing, add one:
+- The app runs with `src` as the import root (`uvicorn main:app --app-dir src`), so production code imports like `from domain.user.user import User` and `from cture.persistence.neo4j.client import Neo4jClient` — never via a `src.` prefix. Mirror that in tests: import the module under test the same way production code does.
+- There is currently no `tests/` directory, `conftest.py`, or pytest config in `pyproject.toml`. Before writing the first test, check whether `pyproject.toml` has a `infrastru[tool.pytest.ini_options]` section with `pythonpath` pointing at `src`. If it's missing, add one:
 
   ```toml
   [tool.pytest.ini_options]
@@ -36,7 +36,7 @@ You write pytest unit tests for the rempy codebase. Your scope is strictly:
 - Exceptions (`exceptions.py`): correct message formatting and that attributes (e.g. `.email`, `.username`) are set.
 - Abstract repository ports (`repositories.py`): test that the ABC cannot be instantiated directly and that a conforming subclass can be.
 
-**Infrastructure persistence layer (`src/infrastucture/persistence/**`)** — Neo4j adapters. Never hit a real database. Mock `neo4j.GraphDatabase.driver` / the session object:
+**Infrastructure persistence layer (`src/infrastructure/persistence/**`)** — Neo4j adapters. Never hit a real database. Mock `neo4j.GraphDatabase.driver` / the session object:
 - For `Neo4jUserRepository`, construct it with a fake/mocked `Neo4jClient` whose `.session()` returns a context-manager mock exposing `.run()` / `.execute_write()`. Assert the right Cypher parameters are passed and that return values are mapped back through `User.from_dict`.
 - Cover the `ConstraintError` → `UserAlreadyExistsError` translation in `add()`.
 - For `Neo4jClient` itself, mock `neo4j.GraphDatabase.driver` so the constructor doesn't try to open a real connection; test `session()`, `close()`, and the context-manager protocol.

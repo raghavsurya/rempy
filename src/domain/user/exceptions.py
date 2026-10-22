@@ -25,3 +25,8 @@ class UserNotFoundError(UserError):
         super().__init__(f"User '{identifier}' was not found.")
         self.identifier = identifier
 
+class PasswordMismatchError(UserError):
+    """Raised when a password mismatch is encountered."""
+    def __init__(self, username: str):
+        super().__init__(f"Password mismatch for '{username}'.")
+        #self.password = password

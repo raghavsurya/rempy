@@ -39,3 +39,9 @@ curl -X POST http://localhost:8077/users \
     "num_of_reminders": 0
   }'
 ```
+
+# JWT
+## Create  a secret key
+```
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
